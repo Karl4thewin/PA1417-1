@@ -1,28 +1,34 @@
 import pytest
 from pymongo import MongoClient
 from src.util.dao import DAO
+from unittest.mock import patch
 
 @pytest.fixture(scope="module")
 def dao():
-    client = MongoClient("mongodb://localhost:27017/")
-    test_db = client["test_edutask_integration"]
+    # Patch the environment to always use a local MongoDB
+    with patch.dict('os.environ', {'MONGO_URL': 'mongodb://localhost:27017/'}):
+        client = MongoClient("mongodb://localhost:27017/")
+        test_db = client["test_edutask_integration"]
 
-    # Drop the test database to ensure a clean state
-    client.drop_database("test_edutask_integration")
+        # Drop the test database to ensure a clean state
+        client.drop_database("test_edutask_integration")
 
-    # This fixture initializes DAO for each type of collection to test different validators
-    yield {
-        'task': DAO("task"),
-        'todo': DAO("todo"),
-        'user': DAO("user"),
-        'video': DAO("video")
-    }
-    # Teardown: drop the test database after tests
-    client.drop_database("test_edutask_integration")
+        # Initialize DAO for each type of collection to test different validators
+        yield {
+            'task': DAO("task"),
+            'todo': DAO("todo"),
+            'user': DAO("user"),
+            'video': DAO("video")
+        }
+        # Teardown: drop the test database after tests
+        client.drop_database("test_edutask_integration")
 
 def test_valid_insertion(dao):
     """Test inserting valid items according to their validators."""
-    task_data = {"title": "Project Plan", "description": "Plan the project phases"}
+    task_data = {"title": "Project Plan",
+    "description": "Plan the project phases",
+    "categories": ["primeTest", "ex"],
+    }
     todo_data = {"description": "Buy milk", "done": False}
     user_data = {"firstName": "John", "lastName": "Doe", "email": "john.doe@example.com"}
     video_data = {"url": "http://youtube.com/watch?v=abc123"}
@@ -34,6 +40,8 @@ def test_valid_insertion(dao):
 
 def test_missing_required_fields(dao):
     """Test errors when required fields are missing."""
+    with pytest.raises(Exception):
+        dao['task'].create({"title": "Project Plan"})  # Missing description
     with pytest.raises(Exception):
         dao['todo'].create({"done": True})  # Missing description
     with pytest.raises(Exception):
